@@ -9,10 +9,11 @@
 #include <sys/mman.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <wchar.h>
 
 #include "fs.h"
 
-int read_file(const char* filepath, char** content)
+int read_file(const char* filepath, wchar_t** content)
 {
 	int fd = open(filepath, O_RDONLY);
 	if (fd == -1)
@@ -24,13 +25,14 @@ int read_file(const char* filepath, char** content)
 	off_t sz = st.st_size;
 
 	char* fileptr = (char*)mmap(NULL, sz, PROT_READ, MAP_PRIVATE, fd, 0);
+	*content = (wchar_t*)calloc(sz + 1, sizeof(wchar_t));
 
-	*content = (char*)calloc(sz, sizeof(char));
-	memcpy(*content, fileptr, sz);
+	mbstowcs(*content, fileptr, sz);
+
 	munmap(fileptr, sz);
 	close(fd);
 
-	return sz;
+	return wcslen(*content);
 }
 
 int write_file(const char* filepath, uint8_t* content, size_t size)
