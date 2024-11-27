@@ -2,21 +2,19 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <errno.h>
-#include <wchar.h>
 #include <string.h>
-#include <wctype.h>
 #include <math.h>
+#include <ctype.h>
 
 #include "io.h"
 #include "json.h"
 
-
-static inline bool is_whitespace(wchar_t sym)
+static inline bool is_whitespace(char sym)
 {
-	return sym == L' ' || sym == L'\t' || sym == L'\r' || sym == L'\n';
+	return sym == ' ' || sym == '\t' || sym == '\r' || sym == '\n';
 }
 
-static inline size_t get_text_start(wchar_t* json_text, size_t len, size_t start)
+static inline size_t get_text_start(char* json_text, size_t len, size_t start)
 {
 	size_t actual_start = start;
 	while(actual_start < len)
@@ -31,12 +29,12 @@ static inline size_t get_text_start(wchar_t* json_text, size_t len, size_t start
 	return actual_start;
 }
 
-json_number_t json_parse_number(wchar_t* json_text, size_t len, size_t num_start, size_t* new_ptr)
+json_number_t json_parse_number(char* json_text, size_t len, size_t num_start, size_t* new_ptr)
 {
 	size_t actual_start = get_text_start(json_text, len, num_start);
 
-	wchar_t *end = 0;
-	long double num = wcstold(json_text + actual_start, &end);
+	char *end = 0;
+	long double num = strtold(json_text + actual_start, &end);
 
 	if (errno == ERANGE || isnan(num) || !isfinite(num))
 	{
@@ -49,13 +47,13 @@ json_number_t json_parse_number(wchar_t* json_text, size_t len, size_t num_start
 }
 
 
-json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start, size_t* new_ptr)
+json_char_t* json_parse_string(char* json_text, size_t len, size_t str_start, size_t* new_ptr)
 {
 	bool str_started = false, str_ended = false;
 	int begin_index = 0, end_index = 0;
 
 	size_t str_len = 0, str_allocated = STR_DEFAULT_ALLOC_SZ;
-	json_char_t* str = (wchar_t*)calloc(str_allocated, sizeof(wchar_t));
+	json_char_t* str = (char*)calloc(str_allocated, sizeof(char));
 
 	bool prev_was_escaped_backslash = false;
 
@@ -67,15 +65,15 @@ json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start,
 		if(str_len + 1 >= str_allocated)
 		{
 			str_allocated *= 2;
-			str = (wchar_t*)realloc(str, sizeof(json_char_t) * str_allocated);
+			str = (char*)realloc(str, sizeof(json_char_t) * str_allocated);
 		}
 
-		wchar_t sym = json_text[i];
+		char sym = json_text[i];
 
 		if(is_whitespace(sym) && !str_started)
 			continue;
 
-		if(!is_whitespace(sym) && !str_started && sym != L'"')
+		if(!is_whitespace(sym) && !str_started && sym != '"')
 		{
 			fprintf(stderr, "Encountered symbols before string start (index: %d)!\n", i);
 			goto error;
@@ -105,19 +103,19 @@ json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start,
 					fprintf(stderr, "invalid escape sequence! (\\%c)\n", sym);
 					goto error;
 					break;
-				case L'r':
+				case 'r':
 					str[str_len++] = L'\r';
 					break;
-				case L'n':
+				case 'n':
 					str[str_len++] = L'\n';
 					break;
-				case L't':
+				case 't':
 					str[str_len++] = L'\t';
 					break;
-				case L'b':
+				case 'b':
 					str[str_len++] = L'\b';
 					break;
-				case L'f':
+				case 'f':
 					str[str_len++] = L'\f';
 					break;
 				case '/':
@@ -127,8 +125,8 @@ json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start,
 
 				case 'u':			// parse things such as \u002F (/)
 					errno = 0;
-					wchar_t hex[5] = { 0 };
-					wchar_t *end = 0;
+					char hex[5] = { 0 };
+					char *end = 0;
 
 					if(len - i - 1 < 4)
 					{
@@ -136,9 +134,9 @@ json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start,
 						goto error;
 					}
 
-					memcpy(hex, json_text + i + 1, sizeof(wchar_t) * 5);
+					memcpy(hex, json_text + i + 1, sizeof(char) * 5);
 
-					wchar_t val = wcstol(json_text + i + 1, &end, 16);
+					char val = strtol(json_text + i + 1, &end, 16);
 
 				        if (json_text + i + 1 == end || errno == ERANGE)
 					{
@@ -174,8 +172,8 @@ json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start,
 		}
 	}
 
-	str_allocated = str_len;
-	str = (wchar_t*)realloc(str, sizeof(json_char_t) * str_allocated);
+	str_allocated = str_len + 1;
+	str = (char*)realloc(str, sizeof(json_char_t) * str_allocated);
 
 	*new_ptr = --i;
 
@@ -186,7 +184,7 @@ error:
 	return 0;
 }
 
-json_value_t json_parse_value(wchar_t* json_text, size_t len, size_t value_start, size_t* new_ptr)
+json_value_t json_parse_value(char* json_text, size_t len, size_t value_start, size_t* new_ptr)
 {
 	json_value_t val = (json_value_t){JSON_NONE, 0};
 	size_t actual_start = get_text_start(json_text, len, value_start);
@@ -201,7 +199,7 @@ json_value_t json_parse_value(wchar_t* json_text, size_t len, size_t value_start
 		return val;
 	}
 	
-	if(starting_sym == '-' || iswdigit(starting_sym))
+	if(starting_sym == '-' || isdigit(starting_sym))
 	{
 		json_number_t num = json_parse_number(json_text, len, actual_start, new_ptr);
 		// fprintf(stderr, "encountered number! %Lf\n", num);
@@ -211,13 +209,16 @@ json_value_t json_parse_value(wchar_t* json_text, size_t len, size_t value_start
 	}
 
 	if(starting_sym == ']')
+	{
+		*new_ptr = actual_start - 1;
 		return val;	// end of array
+	}
 
 
 	if(starting_sym == '[')
 	{
 		// fprintf(stderr, "encountered array!\n");
-		size_t array_ptr = actual_start + 1;
+		size_t array_ptr = actual_start;
 
 		json_array_t* arr = (json_array_t*)calloc(sizeof(json_array_t), 1);
 		arr->length = ARR_DEFAULT_ALLOC_SZ;
@@ -254,6 +255,7 @@ json_value_t json_parse_value(wchar_t* json_text, size_t len, size_t value_start
 
 		val.type = JSON_ARRAY;
 		val.value.arr = arr;
+		*new_ptr = array_ptr;
 		return val;
 	}
 
@@ -272,23 +274,23 @@ json_value_t json_parse_value(wchar_t* json_text, size_t len, size_t value_start
 	// printf("%ls\n", json_text + actual_start);
 
 	#define VAL_CMP(val_str, enum_val)								\
-		if(wcsncmp(json_text + actual_start, val_str, wcslen(val_str)) == 0)			\
+		if(strncmp(json_text + actual_start, val_str, strlen(val_str)) == 0)			\
 		{											\
 			val.type = enum_val;								\
 			return val;									\
 		}											\
 
 
-	VAL_CMP(L"true", JSON_TRUE)
-	VAL_CMP(L"false", JSON_FALSE)
-	VAL_CMP(L"null", JSON_NULL)
+	VAL_CMP("true", JSON_TRUE)
+	VAL_CMP("false", JSON_FALSE)
+	VAL_CMP("null", JSON_NULL)
 	
 	#undef VAL_CMP
 
 	return val;
 }
 
-json_object_t* json_parse_object(wchar_t* json_text, size_t len, size_t object_start, size_t* new_ptr)
+json_object_t* json_parse_object(char* json_text, size_t len, size_t object_start, size_t* new_ptr)
 {
 	bool object_started = false, object_ended = false, parsed_key = false, waiting_for_new_entry = false;
 	json_object_t* obj = (json_object_t*)calloc(sizeof(json_object_t), 1);
@@ -305,7 +307,7 @@ json_object_t* json_parse_object(wchar_t* json_text, size_t len, size_t object_s
 			obj->elements = (json_pair_t*)realloc(obj->elements, sizeof(json_pair_t) * obj->elem_cnt);
 		}
 
-		wchar_t sym = json_text[i];
+		char sym = json_text[i];
 		if(is_whitespace(sym))
 			continue;
 
@@ -316,7 +318,7 @@ json_object_t* json_parse_object(wchar_t* json_text, size_t len, size_t object_s
 			size_t prev = i; 
 			obj->elements[cnt].key = json_parse_string(json_text, len, i, &i);
 
-			if(prev == i)
+			if(prev == i || !obj->elements[cnt].key)
 			{
 				fprintf(stderr, RED "unable to parse key! at %d\n (probably trailing comma)\n" RESET, i);
 				goto error;
@@ -324,7 +326,7 @@ json_object_t* json_parse_object(wchar_t* json_text, size_t len, size_t object_s
 
 			parsed_key = true;
 			waiting_for_new_entry = false;
-			// fprintf(stderr, "parsed object key: \"%ls\"\n", key);
+			fprintf(stderr, "parsed object key: \"%s\"\n", obj->elements[cnt].key);
 			// fprintf(stderr, "now at\"%d\"\n", i);
 			continue;
 		}
@@ -333,7 +335,7 @@ json_object_t* json_parse_object(wchar_t* json_text, size_t len, size_t object_s
 		{
 		     case '{':
 				object_started = true;
-				// fprintf(stderr, "object started!\n");
+				fprintf(stderr, "object started!\n");
 				break;
 		     case '}':
 				if(waiting_for_new_entry)
@@ -342,21 +344,28 @@ json_object_t* json_parse_object(wchar_t* json_text, size_t len, size_t object_s
 					goto error;
 				}
 
-				// fprintf(stderr, "object ended!\n");
+				*new_ptr = i;
+				fprintf(stderr, "object ended!\n");
 				object_ended = true;
+				goto done;
 				break;
 		     case ':':
-				// fprintf(stderr, "beginning to parse \"%ls\" value\n", key);
+				fprintf(stderr, "beginning to parse \"%s\" value\n", obj->elements[cnt].key);
 				obj->elements[cnt].value = json_parse_value(json_text, len, i + 1, &i);
+				fprintf(stderr, "parsed %s\n", obj->elements[cnt].value.value.str);
 				cnt++;
 				break;
 		     case ',':
 				waiting_for_new_entry = true;
 				parsed_key = false;
-				// fprintf(stderr, "waiting for NEW entry!\n");
+				fprintf(stderr, "waiting for NEW entry!\n");
 			     	break;
 		}
 	}
+
+done:
+	obj->elem_cnt = cnt;
+	obj->elements = (json_pair_t*)realloc(obj->elements, sizeof(json_pair_t) * obj->elem_cnt);
 
 	return obj;
 
@@ -404,7 +413,7 @@ void json_free_array(json_array_t* arr)
 	free(arr);
 }
 
-json_object_t* json_parse(wchar_t* json_text, size_t len)
+json_object_t* json_parse(char* json_text, size_t len)
 {
 	// json_object_t root = (json_object_t){L"[ROOT]"};
 	json_object_t* root = (json_object_t*)calloc(sizeof(json_object_t), 1);
@@ -416,9 +425,9 @@ json_object_t* json_parse(wchar_t* json_text, size_t len)
 	root->elements[0].key = (json_char_t*)calloc(sizeof(json_char_t), sizeof(ROOT_NODE_NAME) / sizeof(json_char_t));
 	memcpy(root->elements[0].key, ROOT_NODE_NAME, sizeof(ROOT_NODE_NAME));
 
-	root->elements[0].value.type = JSON_OBJECT;
-	root->elements[0].value.value.obj = json_parse_object(json_text, len, 0, &end_ptr);
+	root->elements[0].value = json_parse_value(json_text, len, 0, &end_ptr);
 
 	return root;
 }
+
 

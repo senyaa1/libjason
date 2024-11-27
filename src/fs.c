@@ -13,7 +13,7 @@
 
 #include "fs.h"
 
-int read_file(const char* filepath, wchar_t** content)
+int read_file(const char* filepath, char** content)
 {
 	int fd = open(filepath, O_RDONLY);
 	if (fd == -1)
@@ -25,14 +25,13 @@ int read_file(const char* filepath, wchar_t** content)
 	off_t sz = st.st_size;
 
 	char* fileptr = (char*)mmap(NULL, sz, PROT_READ, MAP_PRIVATE, fd, 0);
-	*content = (wchar_t*)calloc(sz + 1, sizeof(wchar_t));
-
-	mbstowcs(*content, fileptr, sz);
+	*content = (char*)calloc(sz + 1, sizeof(char));
+	memcpy(*content, fileptr, sz);
 
 	munmap(fileptr, sz);
 	close(fd);
 
-	return wcslen(*content);
+	return sz;
 }
 
 int write_file(const char* filepath, uint8_t* content, size_t size)
