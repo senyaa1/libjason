@@ -67,7 +67,7 @@ json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start,
 		if(str_len + 1 >= str_allocated)
 		{
 			str_allocated *= 2;
-			str = (wchar_t*)realloc(str, str_allocated);
+			str = (wchar_t*)realloc(str, sizeof(json_char_t) * str_allocated);
 		}
 
 		wchar_t sym = json_text[i];
@@ -78,7 +78,7 @@ json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start,
 		if(!is_whitespace(sym) && !str_started && sym != L'"')
 		{
 			fprintf(stderr, "Encountered symbols before string start (index: %d)!\n", i);
-			return 0;
+			goto error;
 		}
 
 		bool escaped = i > 1 && json_text[i - 1] == '\\' && !prev_was_escaped_backslash;
@@ -103,7 +103,8 @@ json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start,
 			{
 				default:
 					fprintf(stderr, "invalid escape sequence! (\\%c)\n", sym);
-					return 0;
+					goto error;
+					break;
 				case L'r':
 					str[str_len++] = L'\r';
 					break;
@@ -132,7 +133,7 @@ json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start,
 					if(len - i - 1 < 4)
 					{
 			            		fprintf(stderr, "can't parse unicode code point cause string is out of bounds!\n");
-						return 0;
+						goto error;
 					}
 
 					memcpy(hex, json_text + i + 1, sizeof(wchar_t) * 5);
@@ -142,7 +143,7 @@ json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start,
 				        if (json_text + i + 1 == end || errno == ERANGE)
 					{
 			            		fprintf(stderr, "unable to parse unicode code point!\n");
-						return 0;
+						goto error;
 					}
 
 					str[str_len++] = val;
@@ -173,18 +174,22 @@ json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start,
 		}
 	}
 
+	str_allocated = str_len;
+	str = (wchar_t*)realloc(str, sizeof(json_char_t) * str_allocated);
+
 	*new_ptr = --i;
 
-
 	return str;
+
+error:
+	free(str);
+	return 0;
 }
 
 json_value_t json_parse_value(wchar_t* json_text, size_t len, size_t value_start, size_t* new_ptr)
 {
 	json_value_t val = (json_value_t){JSON_NONE, 0};
-
 	size_t actual_start = get_text_start(json_text, len, value_start);
-
 	json_char_t starting_sym = json_text[actual_start];
 
 	if(starting_sym == '"')
@@ -213,23 +218,39 @@ json_value_t json_parse_value(wchar_t* json_text, size_t len, size_t value_start
 	{
 		// fprintf(stderr, "encountered array!\n");
 		size_t array_ptr = actual_start + 1;
-		json_array_t arr = 0;
 
+		json_array_t* arr = (json_array_t*)calloc(sizeof(json_array_t), 1);
+		arr->length = ARR_DEFAULT_ALLOC_SZ;
+		arr->arr = (json_value_t*)calloc(sizeof(json_value_t), arr->length);
+
+		size_t elem_cnt = 0;
 		while(1)
 		{
+			if(elem_cnt >= arr->length)
+			{
+				arr->length *= 2;
+				arr->arr = (json_value_t*)realloc(arr->arr, sizeof(json_value_t) * arr->length);
+			}
+
 			json_value_t elem = json_parse_value(json_text, len, array_ptr + 1, new_ptr);
 
 			if(!elem.type)
 			{
 				fprintf(stderr, RED "Unable to parse array element! Probably trailing comma\n" RESET);
+				json_free_array(arr);
 				return val;
 			}
+
+			arr->arr[elem_cnt++] = elem;
 			
 			array_ptr = get_text_start(json_text, len, *new_ptr + 1);
 
 			if(json_text[array_ptr] != L',')
 				break;
 		}
+
+		arr->length = elem_cnt;
+		arr->arr = (json_value_t*)realloc(arr->arr, sizeof(json_value_t) * arr->length);
 
 		val.type = JSON_ARRAY;
 		val.value.arr = arr;
@@ -239,7 +260,7 @@ json_value_t json_parse_value(wchar_t* json_text, size_t len, size_t value_start
 	if(starting_sym == '{')
 	{
 		// fprintf(stderr, "encountered object!\n");
-		json_object_t obj = json_parse_object(json_text, len, actual_start, new_ptr);
+		json_object_t* obj = json_parse_object(json_text, len, actual_start, new_ptr);
 		val.type = JSON_OBJECT;
 		val.value.obj = obj;
 		return val;
@@ -267,14 +288,23 @@ json_value_t json_parse_value(wchar_t* json_text, size_t len, size_t value_start
 	return val;
 }
 
-json_object_t json_parse_object(wchar_t* json_text, size_t len, size_t object_start, size_t* new_ptr)
+json_object_t* json_parse_object(wchar_t* json_text, size_t len, size_t object_start, size_t* new_ptr)
 {
 	bool object_started = false, object_ended = false, parsed_key = false, waiting_for_new_entry = false;
-	json_object_t obj = (json_object_t){L"UNDEFINED", 0};
+	json_object_t* obj = (json_object_t*)calloc(sizeof(json_object_t), 1);
 
+	obj->elem_cnt = OBJ_DEFAULT_ALLOC_SZ;
+	obj->elements = (json_pair_t*)calloc(sizeof(json_pair_t), obj->elem_cnt);
 
+	size_t cnt = 0;
 	for(size_t i = object_start; i < len; i++)
 	{
+		if (cnt >= obj->elem_cnt)
+		{
+			obj->elem_cnt *= 2;
+			obj->elements = (json_pair_t*)realloc(obj->elements, sizeof(json_pair_t) * obj->elem_cnt);
+		}
+
 		wchar_t sym = json_text[i];
 		if(is_whitespace(sym))
 			continue;
@@ -284,12 +314,12 @@ json_object_t json_parse_object(wchar_t* json_text, size_t len, size_t object_st
 		{
 			// fprintf(stderr, "was at index \"%d\"\n", i);
 			size_t prev = i; 
-			obj.name = json_parse_string(json_text, len, i, &i);
+			obj->elements[cnt].key = json_parse_string(json_text, len, i, &i);
 
 			if(prev == i)
 			{
 				fprintf(stderr, RED "unable to parse key! at %d\n (probably trailing comma)\n" RESET, i);
-				return 0;
+				goto error;
 			}
 
 			parsed_key = true;
@@ -304,13 +334,12 @@ json_object_t json_parse_object(wchar_t* json_text, size_t len, size_t object_st
 		     case '{':
 				object_started = true;
 				// fprintf(stderr, "object started!\n");
-				// begin parsing string
 				break;
 		     case '}':
 				if(waiting_for_new_entry)
 				{
 					fprintf(stderr, RED "Trailing comma!\n" RESET);
-					return 0;
+					goto error;
 				}
 
 				// fprintf(stderr, "object ended!\n");
@@ -318,8 +347,8 @@ json_object_t json_parse_object(wchar_t* json_text, size_t len, size_t object_st
 				break;
 		     case ':':
 				// fprintf(stderr, "beginning to parse \"%ls\" value\n", key);
-				// parse value
-				obj.value = json_parse_value(json_text, len, i + 1, &i);
+				obj->elements[cnt].value = json_parse_value(json_text, len, i + 1, &i);
+				cnt++;
 				break;
 		     case ',':
 				waiting_for_new_entry = true;
@@ -329,15 +358,67 @@ json_object_t json_parse_object(wchar_t* json_text, size_t len, size_t object_st
 		}
 	}
 
+	return obj;
+
+error:
+	json_free_object(obj);
 	return 0;
 }
 
-
-void json_parse(wchar_t* json_text, size_t len)
+void json_free_object(json_object_t* obj)
 {
-	json_object_t root = (json_object_t){L"[ROOT]", 0};
+	for(int i = 0; i < obj->elem_cnt; i++)
+	{
+		json_free_val(&obj->elements[i].value);
+		free(obj->elements[i].key);
+	}
 
+	free(obj->elements);
+	free(obj);
+}
+
+void json_free_val(json_value_t* val)
+{
+	switch(val->type)
+	{
+		case JSON_STRING:
+			free(val->value.str);
+			break;
+		case JSON_ARRAY:
+			json_free_array(val->value.arr);
+			break;
+		case JSON_OBJECT:
+			json_free_object(val->value.obj);
+			break;
+		default:
+			break;
+	}
+}
+
+void json_free_array(json_array_t* arr)
+{
+	for(int i = 0; i < arr->length; i++)
+		json_free_val(&arr->arr[i]);
+
+	free(arr->arr);
+	free(arr);
+}
+
+json_object_t* json_parse(wchar_t* json_text, size_t len)
+{
+	// json_object_t root = (json_object_t){L"[ROOT]"};
+	json_object_t* root = (json_object_t*)calloc(sizeof(json_object_t), 1);
 	size_t end_ptr = 0;
-	json_parse_object(json_text, len, 0, &end_ptr);
+
+	root->elem_cnt = 1;
+	root->elements = (json_pair_t*)calloc(sizeof(json_pair_t), 1);
+
+	root->elements[0].key = (json_char_t*)calloc(sizeof(json_char_t), sizeof(ROOT_NODE_NAME) / sizeof(json_char_t));
+	memcpy(root->elements[0].key, ROOT_NODE_NAME, sizeof(ROOT_NODE_NAME));
+
+	root->elements[0].value.type = JSON_OBJECT;
+	root->elements[0].value.value.obj = json_parse_object(json_text, len, 0, &end_ptr);
+
+	return root;
 }
 

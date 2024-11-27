@@ -12,7 +12,7 @@ int main(int argc, char** argv)
 
 	printf("original: %ls\n", json_text);
 
-	json_parse(json_text, len);
+	json_object_t* json = json_parse(json_text, len);
 
 	// json_value_type_t type = json_parse_tfn(json_text, len, 3);
 	// printf("parsed: %d\n", type);
@@ -24,6 +24,8 @@ int main(int argc, char** argv)
 	// printf("parsed: %Lf\n", num);
 
 	// free(res);
+	//
+	json_free_object(json);
 	free(json_text);
 
 	
