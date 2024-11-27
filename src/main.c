@@ -4,55 +4,37 @@
 #include <errno.h>
 #include <wchar.h>
 #include <string.h>
+#include <wctype.h>
 #include <math.h>
 
 #include "fs.h"
+#include "io.h"
+#include "json.h"
 
-typedef enum JSON_VALUE_TYPE
-{
-	JSON_NONE	= 0,
-	JSON_OBJECT	= 1,
-	JSON_ARRAY	= 2,
-	JSON_NUMBER	= 3,
-	JSON_STRING	= 4,
-	JSON_TRUE	= 5,
-	JSON_FALSE	= 6,
-	JSON_NULL	= 7,
-} json_value_type_t;
-
-typedef struct json_object json_object_t;
-typedef void* json_generic_t;
-typedef long double json_number_t;
-typedef wchar_t json_char_t;
-
-struct json_object
-{
-	wchar_t* name;
-	json_value_type_t value_type;
-	json_generic_t* value;
-};
-
-const size_t STR_DEFAULT_ALLOC_SZ = 32;
 
 static inline bool is_whitespace(wchar_t sym)
 {
 	return sym == L' ' || sym == L'\t' || sym == L'\r' || sym == L'\n';
 }
 
-
-json_number_t json_parse_number(wchar_t* json_text, size_t len, size_t num_start)
+static inline size_t get_text_start(wchar_t* json_text, size_t len, size_t start)
 {
-	size_t actual_start = num_start;
+	size_t actual_start = start;
 	while(actual_start < len)
 	{
-		wchar_t sym = json_text[actual_start];
-		actual_start++;
-		if(!is_whitespace(sym))
+		if(!is_whitespace(json_text[actual_start++]))
 		{
 			actual_start--;
 			break;
 		}
 	}
+
+	return actual_start;
+}
+
+json_number_t json_parse_number(wchar_t* json_text, size_t len, size_t num_start, size_t* new_ptr)
+{
+	size_t actual_start = get_text_start(json_text, len, num_start);
 
 	wchar_t *end = 0;
 	long double num = wcstold(json_text + actual_start, &end);
@@ -63,11 +45,12 @@ json_number_t json_parse_number(wchar_t* json_text, size_t len, size_t num_start
 		return NAN;
 	}
 
+	*new_ptr = end - json_text - 1;
 	return num;
 }
 
 
-json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start)
+json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start, size_t* new_ptr)
 {
 	bool str_started = false, str_ended = false;
 	int begin_index = 0, end_index = 0;
@@ -76,7 +59,9 @@ json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start)
 	json_char_t* str = (wchar_t*)calloc(str_allocated, sizeof(wchar_t));
 
 	bool prev_was_escaped_backslash = false;
-	for(int i = str_start; i < len - 1; i++)
+
+	int i = str_start;
+	for(; i < len - 1; i++)
 	{
 		if(str_ended) break;
 
@@ -94,7 +79,7 @@ json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start)
 
 		if(!is_whitespace(sym) && !str_started && sym != L'"')
 		{
-			fprintf(stderr, "Encountered symbols before string start!\n");
+			fprintf(stderr, "Encountered symbols before string start (index: %d)!\n", i);
 			return 0;
 		}
 
@@ -190,42 +175,160 @@ json_char_t* json_parse_string(wchar_t* json_text, size_t len, size_t str_start)
 		}
 	}
 
+	*new_ptr = --i;
+
+
 	return str;
 }
 
-// pass ptr to { (not trimmed)
-// return ptr to } and write object data to parent
-int json_parse_object(json_object_t* parent, wchar_t* json_text, size_t len, size_t object_start)
+json_value_type_t json_parse_value(wchar_t* json_text, size_t len, size_t value_start, size_t* new_ptr)
 {
-	for(int i = object_start; i < len; i++)
+	size_t actual_start = get_text_start(json_text, len, value_start);
+
+	json_char_t starting_sym = json_text[actual_start];
+
+	if(starting_sym == '"')
+	{
+		json_char_t* str = json_parse_string(json_text, len, actual_start, new_ptr);
+		fprintf(stderr, "encountered string! %ls\n", str);
+		return JSON_STRING;
+	}
+	
+	if(starting_sym == '-' || iswdigit(starting_sym))
+	{
+		json_number_t num = json_parse_number(json_text, len, actual_start, new_ptr);
+		fprintf(stderr, "encountered number! %Lf\n", num);
+		return JSON_NUMBER;
+	}
+
+	if(starting_sym == ']')
+		return JSON_NONE;	// end of array
+
+
+	if(starting_sym == '[')
+	{
+		fprintf(stderr, "encountered array!\n");
+		size_t array_ptr = actual_start + 1;
+
+		while(1)
+		{
+			if(!json_parse_value(json_text, len, array_ptr + 1, new_ptr))
+			{
+				fprintf(stderr, RED "Unable to parse array element! Probably trailing comma\n" RESET);
+				return JSON_NONE;
+			}
+			
+			array_ptr = get_text_start(json_text, len, *new_ptr + 1);
+
+			if(json_text[array_ptr] != L',')
+				break;
+		}
+
+		return JSON_ARRAY;
+	}
+
+	if(starting_sym == '{')
+	{
+		fprintf(stderr, "encountered object!\n");
+		json_parse_object(json_text, len, actual_start, new_ptr);
+		return JSON_OBJECT;
+	}
+
+
+	if(len - actual_start < 5) return JSON_NONE;
+
+	printf("%ls\n", json_text + actual_start);
+
+	#define VAL_CMP(val_str, enum_val)								\
+		if(wcsncmp(json_text + actual_start, val_str, wcslen(val_str)) == 0)			\
+		{											\
+			fprintf(stderr, GREEN "parsed %ls\n" RESET, val_str);				\
+			return enum_val;								\
+		}											\
+		else\
+		{\
+			fprintf(stderr, RED "[%*.ls] doesnt match %ls\n" RESET, wcslen(val_str), json_text + actual_start, val_str);				\
+		}\
+
+
+	VAL_CMP(L"true", JSON_TRUE)
+	VAL_CMP(L"false", JSON_FALSE)
+	VAL_CMP(L"null", JSON_NULL)
+	
+	#undef VAL_CMP
+
+	return JSON_NONE;
+}
+
+int json_parse_object(wchar_t* json_text, size_t len, size_t object_start, size_t* new_ptr)
+{
+	bool object_started = false, object_ended = false, parsed_key = false, waiting_for_new_entry = false;
+	json_char_t* key = 0;
+
+	for(size_t i = object_start; i < len; i++)
 	{
 		wchar_t sym = json_text[i];
-		if(sym == ' ' || sym == '\t' || sym == '\r' || sym == '\n')
+		if(is_whitespace(sym))
 			continue;
+
+
+		if(object_started && !parsed_key)
+		{
+			fprintf(stderr, "was at index \"%d\"\n", i);
+			size_t prev = i; 
+			key = json_parse_string(json_text, len, i, &i);
+
+			if(prev == i)
+			{
+				fprintf(stderr, RED "unable to parse key! at %d\n (probably trailing comma)\n" RESET, i);
+				return 0;
+			}
+
+			parsed_key = true;
+			waiting_for_new_entry = false;
+			fprintf(stderr, "parsed object key: \"%ls\"\n", key);
+			fprintf(stderr, "now at\"%d\"\n", i);
+			continue;
+		}
 
 		switch(sym)
 		{
 		     case '{':
+				object_started = true;
+				fprintf(stderr, "object started!\n");
+				// begin parsing string
 				break;
 		     case '}':
+				if(waiting_for_new_entry)
+				{
+					fprintf(stderr, RED "Trailing comma!\n" RESET);
+					return 0;
+				}
+
+				fprintf(stderr, "object ended!\n");
+				object_ended = true;
 				break;
 		     case ':':
+				fprintf(stderr, "beginning to parse \"%ls\" value\n", key);
+				// parse value
+				json_parse_value(json_text, len, i + 1, &i);
 				break;
 		     case ',':
-			     	break;
-		     case '[':
-			     	break;
-		     case ']':
+				waiting_for_new_entry = true;
+				parsed_key = false;
+				fprintf(stderr, "waiting for NEW entry!\n");
 			     	break;
 		}
 	}
 }
 
+
 void json_parse(wchar_t* json_text, size_t len)
 {
 	json_object_t root = (json_object_t){L"[ROOT]", JSON_OBJECT, 0};
 
-	json_parse_object(&root, json_text, len, 0);
+	size_t end_ptr = 0;
+	json_parse_object(json_text, len, 0, &end_ptr);
 }
 
 int main(int argc, char** argv)
@@ -233,7 +336,14 @@ int main(int argc, char** argv)
 	wchar_t* json_text = 0;
 	size_t len = read_file(argv[1], &json_text);
 
-	// wchar_t* res = json_parse_string(json_text, len, 2);
+	printf("original: %ls\n", json_text);
+
+	json_parse(json_text, len);
+
+	// json_value_type_t type = json_parse_tfn(json_text, len, 3);
+	// printf("parsed: %d\n", type);
+
+	// wchar_t* res = json_parse_string(json_text, len, 3);
 	// printf("parsed: %ls\n", res);
 
 	// json_number_t num = json_parse_number(json_text, len, 2);
@@ -242,7 +352,6 @@ int main(int argc, char** argv)
 	// free(res);
 	free(json_text);
 
-	// json_parse(json_text, len);
 	
 	return 0;
 }
