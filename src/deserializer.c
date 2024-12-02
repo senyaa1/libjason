@@ -195,7 +195,7 @@ json_value_t json_deserialize_value(char* json_text, size_t len, size_t value_st
 	if(starting_sym == '"')
 	{
 		json_char_t* str = json_deserialize_string(json_text, len, actual_start, new_ptr);
-		fprintf(stderr, "encountered string! %ls\n", str);
+		// fprintf(stderr, "encountered string! %ls\n", str);
 		val.type = JSON_STRING;
 		val.value.str = str;
 		return val;
@@ -204,7 +204,7 @@ json_value_t json_deserialize_value(char* json_text, size_t len, size_t value_st
 	if(starting_sym == '-' || isdigit(starting_sym))
 	{
 		json_number_t num = json_deserialize_number(json_text, len, actual_start, new_ptr);
-		fprintf(stderr, "encountered number! %Lf\n", num);
+		// fprintf(stderr, "encountered number! %Lf\n", num);
 		val.type = JSON_NUMBER;
 		val.value.num = num;
 		return val;
@@ -263,7 +263,7 @@ json_value_t json_deserialize_value(char* json_text, size_t len, size_t value_st
 
 	if(starting_sym == '{')
 	{
-		fprintf(stderr, "encountered object!\n");
+		// fprintf(stderr, "encountered object!\n");
 		json_object_t* obj = json_deserialize_object(json_text, len, actual_start, new_ptr);
 		val.type = JSON_OBJECT;
 		val.value.obj = obj;
@@ -316,7 +316,7 @@ json_object_t* json_deserialize_object(char* json_text, size_t len, size_t objec
 
 		if(object_started && !deserialized_key)
 		{
-			fprintf(stderr, "was at index \"%d\"\n", i);
+			// fprintf(stderr, "was at index \"%d\"\n", i);
 			size_t prev = i; 
 			obj->elements[cnt].key = json_deserialize_string(json_text, len, i, &i);
 
@@ -328,8 +328,8 @@ json_object_t* json_deserialize_object(char* json_text, size_t len, size_t objec
 
 			deserialized_key = true;
 			waiting_for_new_entry = false;
-			fprintf(stderr, "deserialized object key: \"%s\"\n", obj->elements[cnt].key);
-			fprintf(stderr, "now at\"%d\"\n", i);
+			// fprintf(stderr, "deserialized object key: \"%s\"\n", obj->elements[cnt].key);
+			// fprintf(stderr, "now at\"%d\"\n", i);
 			continue;
 		}
 
@@ -337,7 +337,7 @@ json_object_t* json_deserialize_object(char* json_text, size_t len, size_t objec
 		{
 		     case '{':
 				object_started = true;
-				fprintf(stderr, "object started!\n");
+				// fprintf(stderr, "object started!\n");
 				break;
 		     case '}':
 				if(waiting_for_new_entry)
@@ -347,7 +347,7 @@ json_object_t* json_deserialize_object(char* json_text, size_t len, size_t objec
 				}
 
 				*new_ptr = i;
-				fprintf(stderr, "object ended!\n");
+				// fprintf(stderr, "object ended!\n");
 				object_ended = true;
 				goto done;
 				break;
@@ -360,7 +360,7 @@ json_object_t* json_deserialize_object(char* json_text, size_t len, size_t objec
 		     case ',':
 				waiting_for_new_entry = true;
 				deserialized_key = false;
-				fprintf(stderr, "waiting for NEW entry!\n");
+				// fprintf(stderr, "waiting for NEW entry!\n");
 			     	break;
 		}
 	}
