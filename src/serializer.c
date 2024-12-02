@@ -2,23 +2,23 @@
 #include <string.h>
 
 #include "json.h"
-#include "io.h"
 #include "serializer.h"
+#include "color.h"
 
-static void buf_increase(buf_writer_t* writer)
+static void buf_increase(json_buf_writer_t* writer)
 {
 	writer->buf_len *= 2;
 	writer->buf = (char*)realloc(writer->buf, writer->buf_len * sizeof(char));
 }
 
-static void buf_maybe_increase(buf_writer_t* writer, size_t n)
+static void buf_maybe_increase(json_buf_writer_t* writer, size_t n)
 {
 	while(writer->cursor + n >= writer->buf_len - 1)
 		buf_increase(writer);
 }
 
 
-void bufcpy(buf_writer_t* writer, const char* string)
+static void bufcpy(json_buf_writer_t* writer, const char* string)
 {
 	size_t len = strlen(string);
 	buf_maybe_increase(writer, len);
@@ -27,20 +27,20 @@ void bufcpy(buf_writer_t* writer, const char* string)
 	writer->cursor += len;
 }
 
-void bufncpy(buf_writer_t* writer, const char* string, size_t len)
+static void bufncpy(json_buf_writer_t* writer, const char* string, size_t len)
 {
 	buf_maybe_increase(writer, len);
 	memcpy(writer->buf + writer->cursor, string, len);
 	writer->cursor += len;
 }
 
-void bufindent(buf_writer_t* writer)
+static void bufindent(json_buf_writer_t* writer)
 {
 	for(int i = 0; i < writer->indent; i++)	
 		bufcpy(writer, "\t");
 }
 
-static void serialize_str(buf_writer_t* writer, json_char_t* str)
+void json_serialize_str(json_buf_writer_t* writer, json_char_t* str)
 {
 	size_t old_len = strlen(str);
 	size_t len = 1, cur_alloc = old_len + 3;
@@ -102,7 +102,7 @@ static void serialize_str(buf_writer_t* writer, json_char_t* str)
 	free(escaped_str);
 }
 
-static void serialize_num(buf_writer_t* writer, json_number_t num)
+void json_serialize_num(json_buf_writer_t* writer, json_number_t num)
 {
 	static char num_str[256] = {0};
 	sprintf(num_str, "%g", num);
@@ -110,7 +110,7 @@ static void serialize_num(buf_writer_t* writer, json_number_t num)
 }
 
 
-void serialize_obj(buf_writer_t* writer, json_object_t* obj)
+void json_serialize_obj(json_buf_writer_t* writer, json_object_t* obj)
 {
 	bufcpy(writer, "{\n");
 	writer->indent++;
@@ -118,9 +118,9 @@ void serialize_obj(buf_writer_t* writer, json_object_t* obj)
 	for(int i = 0; i < obj->elem_cnt; i++)
 	{
 		bufindent(writer);
-		serialize_str(writer, obj->elements[i].key);
+		json_serialize_str(writer, obj->elements[i].key);
 		bufcpy(writer, ": ");
-		serialize_val(writer, &obj->elements[i].value);
+		json_serialize_val(writer, &obj->elements[i].value);
 		if(i != obj->elem_cnt - 1) bufcpy(writer, ",");
 
 		bufcpy(writer, "\n");
@@ -131,7 +131,7 @@ void serialize_obj(buf_writer_t* writer, json_object_t* obj)
 	bufcpy(writer, "}");
 }
 
-void serialize_arr(buf_writer_t* writer, json_array_t* arr)
+void json_serialize_arr(json_buf_writer_t* writer, json_array_t* arr)
 {
 	bufcpy(writer, "[\n");
 	writer->indent++;
@@ -139,7 +139,7 @@ void serialize_arr(buf_writer_t* writer, json_array_t* arr)
 	for(int i = 0; i < arr->length; i++)
 	{
 		bufindent(writer);
-		serialize_val(writer, &arr->arr[i]);
+		json_serialize_val(writer, &arr->arr[i]);
 		if(i != arr->length - 1) bufcpy(writer, ",");
 		bufcpy(writer, "\n");
 	}
@@ -150,22 +150,22 @@ void serialize_arr(buf_writer_t* writer, json_array_t* arr)
 }
 
 
-void serialize_val(buf_writer_t* writer, json_value_t* val)
+void json_serialize_val(json_buf_writer_t* writer, json_value_t* val)
 {
 
 	switch(val->type)
 	{
 		case JSON_OBJECT:
-			serialize_obj(writer, val->value.obj);
+			json_serialize_obj(writer, val->value.obj);
 			break;
 		case JSON_ARRAY:
-			serialize_arr(writer, val->value.arr);
+			json_serialize_arr(writer, val->value.arr);
 			break;
 		case JSON_STRING:
-			serialize_str(writer, val->value.str);
+			json_serialize_str(writer, val->value.str);
 			break;
 		case JSON_NUMBER:
-			serialize_num(writer, val->value.num);
+			json_serialize_num(writer, val->value.num);
 			break;
 		case JSON_TRUE:
 			bufcpy(writer, "true");
@@ -184,18 +184,18 @@ void serialize_val(buf_writer_t* writer, json_value_t* val)
 }
 
 
-char* serialize_json(json_value_t* val)
+char* json_serialize(json_value_t* val)
 {
-	buf_writer_t writer = { 0 };
+	json_buf_writer_t writer = { 0 };
 
-	writer.buf_len = SERIALIZED_BUF_DEFAULT_ALLOC_SZ;
+	writer.buf_len = JSON_SERIALIZED_BUF_DEFAULT_ALLOC_SZ;
 	writer.buf = (char*)calloc(writer.buf_len, sizeof(char));
 
 	switch(val->type)
 	{
 		case JSON_OBJECT:
 		case JSON_ARRAY:
-			serialize_val(&writer, val);
+			json_serialize_val(&writer, val);
 			break;
 		default:
 			fprintf(stderr, RED "Only objects and array are allowed to be top-level components\n" RESET);

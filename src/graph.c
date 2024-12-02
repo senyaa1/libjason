@@ -4,7 +4,7 @@
 
 #include "graph.h"
 #include "json.h"
-#include "io.h"
+#include "color.h"
 
 static Agnode_t* render_arr(Agraph_t* g, json_array_t* arr);
 static Agnode_t* render_obj(Agraph_t* g, json_object_t* obj);

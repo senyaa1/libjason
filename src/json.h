@@ -5,11 +5,9 @@
 typedef double json_number_t;
 typedef char json_char_t;
 
-const size_t SERIALIZED_BUF_DEFAULT_ALLOC_SZ = 1024;
-
-const size_t STR_DEFAULT_ALLOC_SZ = 32;
-const size_t ARR_DEFAULT_ALLOC_SZ = 16;
-const size_t OBJ_DEFAULT_ALLOC_SZ = 16;
+const size_t JSON_STR_DEFAULT_ALLOC_SZ = 32;
+const size_t JSON_ARR_DEFAULT_ALLOC_SZ = 16;
+const size_t JSON_OBJ_DEFAULT_ALLOC_SZ = 16;
 
 typedef enum JSON_VALUE_TYPE : char
 {
@@ -52,11 +50,6 @@ typedef struct json_array
 	json_value_t* arr;
 } json_array_t;
 
-json_number_t json_parse_number(char* json_text, size_t len, size_t num_start, size_t* new_ptr);
-json_char_t* json_parse_string(char* json_text, size_t len, size_t str_start, size_t* new_ptr);
-json_value_t json_parse_value(char* json_text, size_t len, size_t value_start, size_t *new_ptr);
-json_object_t* json_parse_object(char* json_text, size_t len, size_t object_start, size_t* new_ptr);
-json_value_t json_parse(char* json_text, size_t len);
 void json_free_val(json_value_t* val);
 void json_free_object(json_object_t* obj);
 void json_free_array(json_array_t* arr);

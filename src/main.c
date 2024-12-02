@@ -3,12 +3,12 @@
 #include <stdlib.h>
 
 #include "fs.h"
-#include "io.h"
+#include "color.h"
 #include "json.h"
 
 #include "graph.h"
-
 #include "serializer.h"
+#include "deserializer.h"
 
 int main(int argc, char** argv)
 {
@@ -17,12 +17,11 @@ int main(int argc, char** argv)
 
 	printf("original: %ls\n", json_text);
 
-	json_value_t json = json_parse(json_text, len);
+	json_value_t json = json_deserialize(json_text);
 
 	// render_graph(&json, "amogus.png");
-	json_print_val(&json);
 
-	char* serialized_buf = serialize_json(&json);
+	char* serialized_buf = json_serialize(&json);
 
 	printf(RESET "Serialized buf: \n%s\n", serialized_buf);
 
