@@ -3,9 +3,7 @@
 
 #include "json.h"
 #include "io.h"
-#include "serialize.h"
-
-#define SERIALIZED_ANSI_COLORED
+#include "serializer.h"
 
 static void buf_increase(buf_writer_t* writer)
 {
@@ -15,7 +13,7 @@ static void buf_increase(buf_writer_t* writer)
 
 static void buf_maybe_increase(buf_writer_t* writer, size_t n)
 {
-	while(*writer->cursor + n > writer->buf_len - 1)
+	while(writer->cursor + n >= writer->buf_len - 1)
 		buf_increase(writer);
 }
 
@@ -25,33 +23,79 @@ void bufcpy(buf_writer_t* writer, const char* string)
 	size_t len = strlen(string);
 	buf_maybe_increase(writer, len);
 
-	memcpy(writer->buf + *writer->cursor, string, len);
-	*writer->cursor += len;
+	memcpy(writer->buf + writer->cursor, string, len);
+	writer->cursor += len;
 }
 
 void bufncpy(buf_writer_t* writer, const char* string, size_t len)
 {
 	buf_maybe_increase(writer, len);
-	memcpy(writer->buf + *writer->cursor, string, len);
-	*writer->cursor += len;
+	memcpy(writer->buf + writer->cursor, string, len);
+	writer->cursor += len;
 }
 
 void bufindent(buf_writer_t* writer)
 {
-	for(int i = 0; i < writer->indent; i++)		// TODO: fix this afwul shit
+	for(int i = 0; i < writer->indent; i++)	
 		bufcpy(writer, "\t");
 }
 
 static void serialize_str(buf_writer_t* writer, json_char_t* str)
 {
-	// TODO: copy escaped string
-	
-	char* escaped_str = 0;
-	#ifdef SERIALIZED_ANSI_COLORED
-	asprintf(&escaped_str, GREEN "\"%s\"" RESET, str);
-	#else
-	asprintf(&escaped_str, "\"%s\"", str);
-	#endif 
+	size_t old_len = strlen(str);
+	size_t len = 1, cur_alloc = old_len + 3;
+
+	json_char_t* escaped_str = (json_char_t*)calloc(cur_alloc, sizeof(json_char_t));
+
+	escaped_str[0] = '\"';
+	for(int i = 0; i < old_len; i++)
+	{
+		if(len >= cur_alloc - 3)
+		{
+			cur_alloc *= 2;
+			escaped_str = (json_char_t*)realloc(escaped_str, cur_alloc * sizeof(json_char_t));
+		}
+
+		char sym = str[i];
+
+		switch(sym)
+		{
+			case '\r':
+				escaped_str[len++] = '\\';
+				escaped_str[len++] = 'r';
+				break;
+			case '\n':
+				escaped_str[len++] = '\\';
+				escaped_str[len++] = 'n';
+				break;
+			case '\t':
+				escaped_str[len++] = '\\';
+				escaped_str[len++] = 't';
+				break;
+			case '\b':
+				escaped_str[len++] = '\\';
+				escaped_str[len++] = 'b';
+				break;
+			case '\f':
+				escaped_str[len++] = '\\';
+				escaped_str[len++] = 'f';
+				break;
+			case '\\':
+				escaped_str[len++] = '\\';
+				escaped_str[len++] = '\\';
+				break;
+			case '\"':
+				escaped_str[len++] = '\\';
+				escaped_str[len++] = '"';
+				break;
+			default:
+				escaped_str[len++] = sym;
+				break;
+		}
+	}
+
+	escaped_str[len++] = '\"';
+	escaped_str[len] = '\0';
 
 	bufcpy(writer, escaped_str);
 
@@ -61,11 +105,7 @@ static void serialize_str(buf_writer_t* writer, json_char_t* str)
 static void serialize_num(buf_writer_t* writer, json_number_t num)
 {
 	static char num_str[256] = {0};
-	#ifdef SERIALIZED_ANSI_COLORED
-	sprintf(num_str, YELLOW "%g" RESET, num);
-	#else 
 	sprintf(num_str, "%g", num);
-	#endif
 	bufcpy(writer, num_str);
 }
 
@@ -146,28 +186,23 @@ void serialize_val(buf_writer_t* writer, json_value_t* val)
 
 char* serialize_json(json_value_t* val)
 {
-	buf_writer_t* writer = (buf_writer_t*)calloc(1, sizeof(buf_writer_t));
+	buf_writer_t writer = { 0 };
 
-	writer->buf_len = SERIALIZED_BUF_DEFAULT_ALLOC_SZ;
-
-	char* buf = (char*)calloc(writer->buf_len, sizeof(char));
-	size_t ptr = 0;
-
-	writer->cursor = &ptr;
-	writer->buf = buf;
+	writer.buf_len = SERIALIZED_BUF_DEFAULT_ALLOC_SZ;
+	writer.buf = (char*)calloc(writer.buf_len, sizeof(char));
 
 	switch(val->type)
 	{
 		case JSON_OBJECT:
 		case JSON_ARRAY:
-			serialize_val(writer, val);
+			serialize_val(&writer, val);
 			break;
 		default:
 			fprintf(stderr, RED "Only objects and array are allowed to be top-level components\n" RESET);
 			return 0;
 	}
 
-	free(writer);
+	writer.buf = (char*)realloc(writer.buf, (writer.cursor + 1) * sizeof(char));
 
-	return buf;
+	return writer.buf;
 }

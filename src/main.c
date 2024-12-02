@@ -8,7 +8,7 @@
 
 #include "graph.h"
 
-#include "serialize.h"
+#include "serializer.h"
 
 int main(int argc, char** argv)
 {

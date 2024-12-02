@@ -5,13 +5,11 @@
 typedef double json_number_t;
 typedef char json_char_t;
 
-const size_t SERIALIZED_BUF_DEFAULT_ALLOC_SZ = 512;
+const size_t SERIALIZED_BUF_DEFAULT_ALLOC_SZ = 1024;
 
 const size_t STR_DEFAULT_ALLOC_SZ = 32;
 const size_t ARR_DEFAULT_ALLOC_SZ = 16;
 const size_t OBJ_DEFAULT_ALLOC_SZ = 16;
-const json_char_t ROOT_NODE_NAME[] = "[ROOT]";
-
 
 typedef enum JSON_VALUE_TYPE : char
 {

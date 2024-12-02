@@ -171,6 +171,7 @@ json_char_t* json_parse_string(char* json_text, size_t len, size_t str_start, si
 				str[str_len++] = sym;
 		}
 	}
+	str[str_len] = '\x00';
 
 	str_allocated = str_len + 1;
 	str = (char*)realloc(str, sizeof(json_char_t) * str_allocated);
