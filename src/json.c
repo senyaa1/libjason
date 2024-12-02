@@ -193,7 +193,7 @@ json_value_t json_parse_value(char* json_text, size_t len, size_t value_start, s
 	if(starting_sym == '"')
 	{
 		json_char_t* str = json_parse_string(json_text, len, actual_start, new_ptr);
-		// fprintf(stderr, "encountered string! %ls\n", str);
+		fprintf(stderr, "encountered string! %ls\n", str);
 		val.type = JSON_STRING;
 		val.value.str = str;
 		return val;
@@ -202,7 +202,7 @@ json_value_t json_parse_value(char* json_text, size_t len, size_t value_start, s
 	if(starting_sym == '-' || isdigit(starting_sym))
 	{
 		json_number_t num = json_parse_number(json_text, len, actual_start, new_ptr);
-		// fprintf(stderr, "encountered number! %Lf\n", num);
+		fprintf(stderr, "encountered number! %Lf\n", num);
 		val.type = JSON_NUMBER;
 		val.value.num = num;
 		return val;
@@ -261,7 +261,7 @@ json_value_t json_parse_value(char* json_text, size_t len, size_t value_start, s
 
 	if(starting_sym == '{')
 	{
-		// fprintf(stderr, "encountered object!\n");
+		fprintf(stderr, "encountered object!\n");
 		json_object_t* obj = json_parse_object(json_text, len, actual_start, new_ptr);
 		val.type = JSON_OBJECT;
 		val.value.obj = obj;
@@ -314,7 +314,7 @@ json_object_t* json_parse_object(char* json_text, size_t len, size_t object_star
 
 		if(object_started && !parsed_key)
 		{
-			// fprintf(stderr, "was at index \"%d\"\n", i);
+			fprintf(stderr, "was at index \"%d\"\n", i);
 			size_t prev = i; 
 			obj->elements[cnt].key = json_parse_string(json_text, len, i, &i);
 
@@ -327,7 +327,7 @@ json_object_t* json_parse_object(char* json_text, size_t len, size_t object_star
 			parsed_key = true;
 			waiting_for_new_entry = false;
 			fprintf(stderr, "parsed object key: \"%s\"\n", obj->elements[cnt].key);
-			// fprintf(stderr, "now at\"%d\"\n", i);
+			fprintf(stderr, "now at\"%d\"\n", i);
 			continue;
 		}
 
@@ -350,9 +350,9 @@ json_object_t* json_parse_object(char* json_text, size_t len, size_t object_star
 				goto done;
 				break;
 		     case ':':
-				fprintf(stderr, "beginning to parse \"%s\" value\n", obj->elements[cnt].key);
+				// fprintf(stderr, "beginning to parse \"%s\" value\n", obj->elements[cnt].key);
 				obj->elements[cnt].value = json_parse_value(json_text, len, i + 1, &i);
-				fprintf(stderr, "parsed %s\n", obj->elements[cnt].value.value.str);
+				// fprintf(stderr, "parsed %s\n", obj->elements[cnt].value.value.str);
 				cnt++;
 				break;
 		     case ',':
@@ -413,21 +413,26 @@ void json_free_array(json_array_t* arr)
 	free(arr);
 }
 
-json_object_t* json_parse(char* json_text, size_t len)
+void json_free(json_value_t val)
+{
+	json_free_val(&val);
+}
+
+json_value_t json_parse(char* json_text, size_t len)
 {
 	// json_object_t root = (json_object_t){L"[ROOT]"};
-	json_object_t* root = (json_object_t*)calloc(sizeof(json_object_t), 1);
+	// json_object_t* root = (json_object_t*)calloc(sizeof(json_object_t), 1);
 	size_t end_ptr = 0;
 
-	root->elem_cnt = 1;
-	root->elements = (json_pair_t*)calloc(sizeof(json_pair_t), 1);
+	// root->elem_cnt = 1;
+	// root->elements = (json_pair_t*)calloc(sizeof(json_pair_t), 1);
+	//
+	// root->elements[0].key = (json_char_t*)calloc(sizeof(json_char_t), sizeof(ROOT_NODE_NAME) / sizeof(json_char_t));
+	// memcpy(root->elements[0].key, ROOT_NODE_NAME, sizeof(ROOT_NODE_NAME));
+	//
+	// root->elements[0].value = 
 
-	root->elements[0].key = (json_char_t*)calloc(sizeof(json_char_t), sizeof(ROOT_NODE_NAME) / sizeof(json_char_t));
-	memcpy(root->elements[0].key, ROOT_NODE_NAME, sizeof(ROOT_NODE_NAME));
-
-	root->elements[0].value = json_parse_value(json_text, len, 0, &end_ptr);
-
-	return root;
+	return json_parse_value(json_text, len, 0, &end_ptr);
 }
 
 

@@ -84,14 +84,11 @@ static Agnode_t* render_obj(Agraph_t* g, json_object_t* obj)
 {
 	static size_t obj_cnt = 0;
 
-	char* root_node_name = 0;
-	asprintf(&root_node_name, "object_%ld", obj_cnt++);
-
-	Agnode_t* obj_root = agnode(g, root_node_name, 1);
+	Agnode_t* obj_root = agnode(g, 0, 1);
 	agsafeset(obj_root, "color", "green", "");
 	agsafeset(obj_root, "style", "filled", "");
-	agsafeset(obj_root, "label", "[object]", "");
 	agsafeset(obj_root, "shape", "box", "");
+	agsafeset(obj_root, "label", "[object]", "");
 
 	for(int i = 0; i < obj->elem_cnt; i++)
 	{
@@ -101,29 +98,24 @@ static Agnode_t* render_obj(Agraph_t* g, json_object_t* obj)
 			continue;
 		}
 
-		char* node_name = 0;
-		asprintf(&node_name, "object_%ld_elem_%ld", obj_cnt, i);
-		Agnode_t* entry = agnode(g, node_name, 1);
+		Agnode_t* entry = agnode(g, 0, 1);
 		agset(entry, "label", obj->elements[i].key);
-
 		agedge(g, obj_root, entry, 0, 1);
 
 		Agnode_t* val = render_val(g, &obj->elements[i].value);
 		agedge(g, entry, val, 0, 1);
-
-		// free(narrow_str);
 	}
 
 	return obj_root;
 }
 
-void render_graph(json_object_t* json, const char* output_filename)
+void render_graph(json_value_t* json, const char* output_filename)
 {
 	GVC_t *gvc = gvContext();
 
 	Agraph_t *g = agopen("G", Agdirected, 0);
 
-	render_obj(g, json);
+	render_val(g, json);
 
 	gvLayout(gvc, g, "dot");
 

@@ -2,4 +2,4 @@
 
 #include "json.h"
 
-void render_graph(json_object_t* json, const char* output_filename);
+void render_graph(json_value_t* json, const char* output_filename);

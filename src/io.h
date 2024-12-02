@@ -1,5 +1,6 @@
 #pragma once
 
+#include "json.h"
 
 #define RED   "\x1B[31m"
 #define GREEN   "\x1B[32m"
@@ -12,3 +13,7 @@
 #define RESET "\x1B[0m"
 #define BOLD "\e[1m"
 
+void json_print_val(json_value_t *val);
+void json_print_arr(json_array_t *arr);
+void json_print_obj(json_object_t *obj);
+void json_print_str(json_char_t* str);

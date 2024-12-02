@@ -3,9 +3,12 @@
 #include <stdlib.h>
 
 #include "fs.h"
+#include "io.h"
 #include "json.h"
 
 #include "graph.h"
+
+#include "serialize.h"
 
 int main(int argc, char** argv)
 {
@@ -14,12 +17,19 @@ int main(int argc, char** argv)
 
 	printf("original: %ls\n", json_text);
 
-	json_object_t* json = json_parse(json_text, len);
+	json_value_t json = json_parse(json_text, len);
 
-	render_graph(json, "amogus.png");
+	// render_graph(&json, "amogus.png");
+	json_print_val(&json);
 
-	json_free_object(json);
+	char* serialized_buf = serialize_json(&json);
+
+	printf(RESET "Serialized buf: \n%s\n", serialized_buf);
+
+	json_free(json);
 	free(json_text);
+	
+	free(serialized_buf);
 	
 	return 0;
 }
