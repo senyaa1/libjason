@@ -76,7 +76,7 @@ json_char_t* json_deserialize_string(char* json_text, size_t len, size_t str_sta
 
 		if(!is_whitespace(sym) && !str_started && sym != '"')
 		{
-			fprintf(stderr, "Encountered symbols before string start (index: %d)!\n", i);
+			// fprintf(stderr, "Encountered symbols before string start (index: %d)!\n", i);
 			goto error;
 		}
 
@@ -322,6 +322,7 @@ json_object_t* json_deserialize_object(char* json_text, size_t len, size_t objec
 
 			if(prev == i || !obj->elements[cnt].key)
 			{
+				// if(cnt == 0) return obj;
 				fprintf(stderr, RED "unable to deserialize key! at %d\n (probably trailing comma)\n" RESET, i);
 				goto error;
 			}

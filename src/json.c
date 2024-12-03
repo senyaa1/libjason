@@ -1,6 +1,26 @@
 #include <stdlib.h>
 #include "json.h"
 
+void json_obj_add_entry(json_object_t* obj, json_char_t* key, json_value_t val)
+{
+	obj->elem_cnt++;
+	obj->elements = (json_pair_t*)realloc(obj->elements, obj->elem_cnt * sizeof(json_pair_t));
+	obj->elements[obj->elem_cnt - 1].key = key;
+	obj->elements[obj->elem_cnt - 1].value = val;
+}
+
+json_value_t* json_obj_get(json_object_t* obj, json_char_t* key)
+{
+	for(int i = 0; i < obj->elem_cnt; i++)
+	{
+		if(key != obj->elements[i].key)	continue;
+
+		return &obj->elements[i].value;
+	}
+
+	return 0;
+}
+
 void json_free_object(json_object_t* obj)
 {
 	for(int i = 0; i < obj->elem_cnt; i++)

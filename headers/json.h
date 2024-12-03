@@ -5,9 +5,9 @@
 typedef double json_number_t;
 typedef char json_char_t;
 
-const size_t JSON_STR_DEFAULT_ALLOC_SZ = 32;
-const size_t JSON_ARR_DEFAULT_ALLOC_SZ = 16;
-const size_t JSON_OBJ_DEFAULT_ALLOC_SZ = 16;
+static const size_t JSON_STR_DEFAULT_ALLOC_SZ = 32;
+static const size_t JSON_ARR_DEFAULT_ALLOC_SZ = 16;
+static const size_t JSON_OBJ_DEFAULT_ALLOC_SZ = 16;
 
 typedef enum JSON_VALUE_TYPE : char
 {
@@ -54,3 +54,7 @@ void json_free_val(json_value_t* val);
 void json_free_object(json_object_t* obj);
 void json_free_array(json_array_t* arr);
 void json_free(json_value_t val);
+
+
+void json_obj_add_entry(json_object_t* obj, json_char_t* key, json_value_t val);
+json_value_t* json_obj_get(json_object_t* obj, json_char_t* key);
