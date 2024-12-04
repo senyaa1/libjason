@@ -294,7 +294,7 @@ json_value_t json_deserialize_value(char* json_text, size_t len, size_t value_st
 
 json_object_t* json_deserialize_object(char* json_text, size_t len, size_t object_start, size_t* new_ptr)
 {
-	bool object_started = false, object_ended = false, deserialized_key = false, waiting_for_new_entry = false;
+	bool object_started = false, object_ended = false, deserialized_key = false, waiting_for_new_entry = false, failed_to_deserialize_key = false;
 	json_object_t* obj = (json_object_t*)calloc(sizeof(json_object_t), 1);
 
 	obj->elem_cnt = JSON_OBJ_DEFAULT_ALLOC_SZ;
@@ -314,7 +314,7 @@ json_object_t* json_deserialize_object(char* json_text, size_t len, size_t objec
 			continue;
 
 
-		if(object_started && !deserialized_key)
+		if(object_started && !deserialized_key && !failed_to_deserialize_key)
 		{
 			// fprintf(stderr, "was at index \"%d\"\n", i);
 			size_t prev = i; 
@@ -322,9 +322,13 @@ json_object_t* json_deserialize_object(char* json_text, size_t len, size_t objec
 
 			if(prev == i || !obj->elements[cnt].key)
 			{
-				// if(cnt == 0) return obj;
-				fprintf(stderr, RED "unable to deserialize key! at %d\n (probably trailing comma)\n" RESET, i);
-				goto error;
+				failed_to_deserialize_key = true;
+				if(cnt == 0)
+				{
+					continue;
+				}
+				// fprintf(stderr, RED "unable to deserialize key! at %d\n (probably trailing comma)\n" RESET, i);
+				// goto error;
 			}
 
 			deserialized_key = true;
@@ -361,6 +365,7 @@ json_object_t* json_deserialize_object(char* json_text, size_t len, size_t objec
 		     case ',':
 				waiting_for_new_entry = true;
 				deserialized_key = false;
+				failed_to_deserialize_key = false;
 				// fprintf(stderr, "waiting for NEW entry!\n");
 			     	break;
 		}

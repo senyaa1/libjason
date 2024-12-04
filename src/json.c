@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include "json.h"
 
 void json_obj_add_entry(json_object_t* obj, json_char_t* key, json_value_t val)
@@ -9,11 +10,30 @@ void json_obj_add_entry(json_object_t* obj, json_char_t* key, json_value_t val)
 	obj->elements[obj->elem_cnt - 1].value = val;
 }
 
+// int json_obj_remove_entry(json_object_t* obj, json_char_t* key)
+// {
+// 	for(int i = 0; i < obj->elem_cnt; i++)
+// 	{
+// 		if(strcmp(key, obj->elements[i].key))	continue;
+//
+// 		for(int j = i; j < obj->elem_cnt; j++)
+// 		{
+// 			obj->elements[
+// 		}
+//
+// 		obj->elements[i] = 0;
+// 		obj->elem_cnt--;
+// 		return 1;
+// 	}
+//
+// 	return 0;
+// }
+
 json_value_t* json_obj_get(json_object_t* obj, json_char_t* key)
 {
 	for(int i = 0; i < obj->elem_cnt; i++)
 	{
-		if(key != obj->elements[i].key)	continue;
+		if(strcmp(key, obj->elements[i].key))	continue;
 
 		return &obj->elements[i].value;
 	}
