@@ -3,7 +3,7 @@
 #include <string.h>
 #include "json.h"
 
-const size_t JSON_SERIALIZED_BUF_DEFAULT_ALLOC_SZ = 1024;
+static const size_t JSON_SERIALIZED_BUF_DEFAULT_ALLOC_SZ = 1024;
 
 typedef struct json_buf_writer
 {
